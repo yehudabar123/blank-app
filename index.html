@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>הופך תמונות לדפי צביעה</title>
+    <style>
+        :root {
+            --primary: #3498db;
+            --primary-hover: #2980b9;
+            --success: #2ecc71;
+            --success-hover: #27ae60;
+            --bg: #f5f7fa;
+            --card: #ffffff;
+            --text: #2c3e50;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .container {
+            max-width: 900px;
+            width: 100%;
+            background: var(--card);
+            padding: 30px;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+            box-sizing: border-box;
+        }
+
+        h1 {
+            text-align: center;
+            margin-top: 0;
+            color: #1a252f;
+        }
+
+        p.subtitle {
+            text-align: center;
+            color: #7f8c8d;
+            margin-bottom: 30px;
+        }
+
+        .upload-zone {
+            border: 3px dashed var(--primary);
+            padding: 40px 20px;
+            text-align: center;
+            border-radius: 12px;
+            cursor: pointer;
+            background: #fcfdfe;
+            transition: all 0.3s ease;
+        }
+
+        .upload-zone:hover {
+            background: #f0f7fc;
+            border-color: var(--primary-hover);
+        }
+
+        .upload-zone p {
+            margin: 0;
+            font-size: 18px;
+            font-weight: bold;
+            color: var(--primary);
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .controls {
+            margin: 25px 0;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 12px;
+            align-items: center;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .control-group.row {
+            flex-direction: row;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .control-group.row input {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+
+        label {
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .btn {
+            background: var(--success);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.2s;
+            font-weight: bold;
+            width: 100%;
+            margin-top: 10px;
+        }
+
+        .btn:hover {
+            background: var(--success-hover);
+        }
+
+        .btn:disabled {
+            background: #bdc3c7;
+            cursor: not-allowed;
+        }
+
+        .preview-box {
+            margin-top: 30px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 200px;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            background-color: #eef2f5;
+            overflow: hidden;
+            background-image: linear-gradient(45deg, #cbd5e1 25%, transparent 25%), 
+                              linear-gradient(-45deg, #cbd5e1 25%, transparent 25%), 
+                              linear-gradient(45deg, transparent 75%, #cbd5e1 75%), 
+                              linear-gradient(-45deg, transparent 75%, #cbd5e1 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+        }
+
+        canvas {
+            max-width: 100%;
+            max-height: 70vh;
+            height: auto;
+            display: block;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>יוצר דפי צביעה אישיים</h1>
+    <p class="subtitle">העלו כל תמונה והפכו אותה לציור קווי מתאר מוכן לצביעה</p>
+
+    <div class="upload-zone" onclick="document.getElementById('fileInput').click()">
+        <p>לחצו כאן לבחירת תמונה או גרירת קובץ</p>
+        <input type="file" id="fileInput" accept="image/*">
+    </div>
+
+    <div class="controls">
+        <div class="control-group">
+            <label for="blurRange">עובי ורגישות הקו (פירוט):</label>
+            <input type="range" id="blurRange" min="1" max="15" value="4" step="0.5">
+        </div>
+        
+        <div class="control-group row">
+            <input type="checkbox" id="noBgToggle">
+            <label for="noBgToggle">ללא רקע (רקע שקוף)</label>
+        </div>
+
+        <div class="control-group">
+            <button class="btn" id="downloadBtn" disabled>הורדת התמונה המוכנה</button>
+        </div>
+    </div>
+
+    <div class="preview-box">
+        <canvas id="outputCanvas"></canvas>
+    </div>
+</div>
+
+<script>
+    const fileInput = document.getElementById('fileInput');
+    const blurRange = document.getElementById('blurRange');
+    const noBgToggle = document.getElementById('noBgToggle');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const canvas = document.getElementById('outputCanvas');
+    const ctx = canvas.getContext('2d');
+
+    let originalImage = null;
+
+    fileInput.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(event) {
+            originalImage = new Image();
+            originalImage.onload = function() {
+                downloadBtn.disabled = false;
+                processImage();
+            };
+            originalImage.src = event.target.result;
+        };
+        reader.readAsDataURL(file);
+    });
+
+    blurRange.addEventListener('input', processImage);
+    noBgToggle.addEventListener('change', processImage);
+
+    function processImage() {
+        if (!originalImage) return;
+
+        const maxDim = 1200;
+        let width = originalImage.width;
+        let height = originalImage.height;
+
+        if (width > maxDim || height > maxDim) {
+            if (width > height) {
+                height *= maxDim / width;
+                width = maxDim;
+            } else {
+                width *= maxDim / height;
+                height = maxDim;
+            }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+
+        const offscreen = document.createElement('canvas');
+        offscreen.width = width;
+        offscreen.height = height;
+        const oCtx = offscreen.getContext('2d');
+
+        oCtx.filter = 'grayscale(100%)';
+        oCtx.drawImage(originalImage, 0, 0, width, height);
+
+        oCtx.globalCompositeOperation = 'color-dodge';
+        const blurValue = blurRange.value;
+        oCtx.filter = `grayscale(100%) invert(100%) blur(${blurValue}px)`;
+        oCtx.drawImage(originalImage, 0, 0, width, height);
+
+        ctx.clearRect(0, 0, width, height);
+        ctx.drawImage(offscreen, 0, 0);
+
+        const imgData = ctx.getImageData(0, 0, width, height);
+        const data = imgData.data;
+        const removeBg = noBgToggle.checked;
+
+        for (let i = 0; i < data.length; i += 4) {
+            const r = data[i];
+            const g = data[i+1];
+            const b = data[i+2];
+            
+            const brightness = 0.299 * r + 0.587 * g + 0.114 * b;
+
+            if (removeBg) {
+                data[i] = 0;
+                data[i+1] = 0;
+                data[i+2] = 0;
+                data[i+3] = 255 - brightness;
+            } else {
+                if (brightness > 225) {
+                    data[i] = 255;
+                    data[i+1] = 255;
+                    data[i+2] = 255;
+                } else if (brightness < 40) {
+                    data[i] = 0;
+                    data[i+1] = 0;
+                    data[i+2] = 0;
+                }
+            }
+        }
+        
+        ctx.putImageData(imgData, 0, 0);
+    }
+
+    downloadBtn.addEventListener('click', function() {
+        const link = document.createElement('a');
+        link.download = 'coloring_page.png';
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+    });
+</script>
+
+</body>
+</html>
